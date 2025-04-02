@@ -1,4 +1,3 @@
-```md
 # Tiny Second-hand Shopping Platform 
 
 A simple secondhand trading web application with user registration, product posting, reporting system, and admin management panel.
@@ -41,5 +40,4 @@ init_db()
 
 > The app uses SQLite (`market.db`) as the database.  
 > To enable admin features, manually set a user's role to `'admin'` in the `user` table.
-```
 
