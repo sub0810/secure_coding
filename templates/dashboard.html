@@ -2,6 +2,17 @@
 {% block title %}대시보드{% endblock %}
 {% block content %}
 <h2>대시보드</h2>
+
+<!-- 검색창 추가 -->
+<form method="get" action="{{ url_for('dashboard') }}">
+  <input type="text" name="q" placeholder="상품명으로 검색" value="{{ request.args.get('q', '') }}">
+  <select name="sort">
+    <option value="newest" {% if request.args.get('sort') == 'newest' %}selected{% endif %}>최신순</option>
+    <option value="price" {% if request.args.get('sort') == 'price' %}selected{% endif %}>가격순</option>
+  </select>
+  <button type="submit">검색</button>
+</form>
+
 <h3>등록된 상품</h3>
 <ul>
   {% for product in products %}
@@ -9,6 +20,8 @@
       <a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a>
       - 가격: {{ product.price }}
     </li>
+  {% else %}
+    <li>검색 결과가 없습니다.</li>
   {% endfor %}
 </ul>
 <p><a href="{{ url_for('new_product') }}">새 상품 등록</a></p>

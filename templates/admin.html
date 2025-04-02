@@ -1,0 +1,57 @@
+<h2>관리자 대시보드</h2>
+<h3>전체 사용자 목록</h3>
+<ul>
+  {% for u in users %}
+    <li>
+      {{ u.username }} - 상태: {{ u.status }}
+      {% if u['role'] != 'admin' %}
+        <a href="{{ url_for('toggle_user', user_id=u['id']) }}">
+          {% if u['status'] == 'suspended' %}
+            <button>정지 해제</button>
+          {% else %}
+            <button>사용자 정지</button>
+          {% endif %}
+        </a>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
+<h3>상품 목록</h3>
+<ul>
+  {% for p in products %}
+    <li>
+      {{ p.title }} - 상태: {{ p.visibility }}
+      <a href="{{ url_for('toggle_product_visibility', product_id=p['id']) }}">
+        {% if p['visibility'] == 'hidden' %}
+          <button>다시 보이기</button>
+        {% else %}
+          <button>숨기기</button>
+        {% endif %}
+      </a>
+    </li>
+  {% endfor %}
+</ul>
+<h3>신고 목록</h3>
+<ul>
+  {% for r in reports %}
+    <li>
+      신고자: {{ r.reporter_name }} / 대상: {{ r.target_name }} <br>
+      사유: {{ r.reason }} <br>
+      상태: {{ r.status }}
+      <a href="{{ url_for('update_report', report_id=r.id) }}">
+        <button>상태 변경</button>
+      </a>
+    </li>
+  {% endfor %}
+</ul>
+<h3>관리자 로그</h3>
+<ul>
+  {% for log in logs %}
+    <li>
+      {{ log.timestamp }} | 관리자: {{ log.admin_name }}
+      - {{ log.action }} → 대상: {{ log.target_name }} ({{ log.target_type }})
+    </li>
+  {% endfor %}
+</ul>
+
+

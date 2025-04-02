@@ -96,6 +96,9 @@
       <a href="{{ url_for('login') }}">로그인</a>
       <a href="{{ url_for('register') }}">회원가입</a>
     {% endif %}
+    {% if user and user['role'] == 'admin' %}
+      <a href="{{ url_for('admin') }}">관리자 페이지</a>
+    {% endif %}
   </nav>
   <div class="container">
     {% with messages = get_flashed_messages() %}
