@@ -576,6 +576,9 @@ def view_product(product_id):
 #송금 정보 보기
 @app.route('/payment_info/<product_id>')
 def payment_info(product_id):
+    if 'user_id' not in session:
+        flash("로그인이 필요합니다.")
+        return redirect(url_for('login'))
     db = get_db()
     cursor = db.cursor()
     cursor.execute("SELECT bank_name, account_number, account_holder FROM product WHERE id = ?", (product_id,))
@@ -591,15 +594,32 @@ def report():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     if request.method == 'POST':
-        target_id = request.form['target_id']
-        reason = request.form['reason']
+        target_id = request.form.get('target_id', '').strip()
+        reason = request.form.get('reason', '').strip()
+        # 유효성 검사
+        if not target_id or not reason:
+            flash("신고 대상과 사유를 모두 입력해주세요.")
+            return redirect(url_for('report'))
+        if len(reason) > 500:
+            flash("신고 사유는 500자 이내여야 합니다.")
+            return redirect(url_for('report'))
+        # XSS 방어: HTML 태그 제거
+        reason = re.sub(r'<[^>]+>', '', reason)
         db = get_db()
         cursor = db.cursor()
+        # 신고 대상 존재 여부 확인
+        cursor.execute("SELECT id FROM user WHERE id = ?", (target_id,))
+        target_user = cursor.fetchone()
+        if not target_user:
+            flash("존재하지 않는 사용자입니다.")
+            return redirect(url_for('report'))
         report_id = str(uuid.uuid4())
         cursor.execute(
             "INSERT INTO report (id, reporter_id, target_id, reason) VALUES (?, ?, ?, ?)",
             (report_id, session['user_id'], target_id, reason)
         )
+        # 관리자가 확인 가능하도록 신고 로그 남기기
+        log_admin_action(session['user_id'], 'report_submitted', 'user', target_id)
         db.commit()
         flash('신고가 접수되었습니다.')
         return redirect(url_for('dashboard'))
