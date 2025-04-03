@@ -3,4 +3,9 @@
 {% block content %}
 <h2>{{ user.username }}'s Profile</h2>
 <p>소개글: {{ user.bio or '없음' }}</p>
+
+<!-- 채팅하기 버튼 -->
+<a href="{{ url_for('private_chat', username=user.username) }}">
+  채팅하기
+</a>
 {% endblock %}

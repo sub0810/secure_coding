@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ target.username }}님과의 채팅{% endblock %}
+{% block content %}
+
+<h2>{{ target.username }}님과의 채팅</h2>
+
+<ul id="messages"></ul>
+
+<input type="text" id="chat_input" placeholder="메시지를 입력하세요">
+<button onclick="sendMessage()">전송</button>
+
+<script type="text/javascript">
+  var socket = io();
+
+  // username 기준으로 room 고정 (정렬된 조합)
+  var ids = ["{{ me.username }}", "{{ target.username }}"].sort();
+  var room = ids[0] + "_" + ids[1];
+
+  // 서버에 room 참가
+  socket.emit('join_room', { room: room });
+
+  // 메시지 수신
+  socket.on('private_message', function(data) {
+    var li = document.createElement("li");
+    li.innerHTML = `<strong>${data.sender_name}</strong>: ${data.message}`;
+    document.getElementById("messages").appendChild(li);
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+
+  // 메시지 전송
+  function sendMessage() {
+    var input = document.getElementById("chat_input");
+    var message = input.value;
+    if (message) {
+      socket.emit('private_message', {
+        room: room,
+        sender_name: "{{ me.username }}",
+        message: message
+      });
+      input.value = "";
+    }
+  }
+</script>
+
+{% endblock %}

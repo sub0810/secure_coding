@@ -2,7 +2,7 @@ import sqlite3
 import uuid
 import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g, abort
-from flask_socketio import SocketIO, send
+from flask_socketio import SocketIO, send, join_room, emit
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -517,6 +517,50 @@ def report():
 def handle_send_message_event(data):
     data['message_id'] = str(uuid.uuid4())
     send(data, broadcast=True)
+
+# 실시간 채팅: 1대1 채팅
+@app.route('/chat/<username>')
+def private_chat(username):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    db = get_db()
+    cursor = db.cursor()
+
+    # 현재 사용자
+    cursor.execute("SELECT id, username FROM user WHERE id = ?", (session['user_id'],))
+    me = cursor.fetchone()
+
+    # 상대방 정보 조회
+    cursor.execute("SELECT id, username FROM user WHERE username = ?", (username,))
+    target = cursor.fetchone()
+
+    if not target or target['id'] == me['id']:
+        flash("잘못된 사용자입니다.")
+        return redirect(url_for('dashboard'))
+
+    # 메시지 조회 없음 → 휘발성 채팅이므로
+    return render_template('chat.html', me=me, target=target, messages=[])
+
+# 방 참여
+@socketio.on('join_room')
+def handle_join_room(data):
+    room = data['room']
+    join_room(room)
+    print(f"[입장] {room} 입장 완료")
+
+# 메시지 송수신 (휘발성)
+@socketio.on('private_message')
+def handle_private_message(data):
+    room = data['room']
+    sender_name = data['sender_name']
+    message = data['message']
+
+    print(f"[chat] {sender_name}: {message}")
+    emit('private_message', {
+        'sender_name': sender_name,
+        'message': message
+    }, to=room)
 
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성
