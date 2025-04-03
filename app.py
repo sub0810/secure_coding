@@ -248,7 +248,7 @@ def toggle_product_visibility(product_id):
     db = get_db()
     cursor = db.cursor()
     # 관리자 인증
-    cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
+    cursor.execute("SELECT id, role FROM user WHERE id = ?", (session['user_id'],))
     admin_user = cursor.fetchone()
     if not admin_user or admin_user['role'] != 'admin':
         abort(403)
@@ -259,6 +259,32 @@ def toggle_product_visibility(product_id):
         cursor.execute("UPDATE product SET visibility = ? WHERE id = ?", (new_visibility, product_id))
         db.commit()
         log_admin_action(admin_user['id'], f'product_{new_visibility}', 'product', product_id)
+    return redirect(url_for('admin'))
+
+# 관리자 페이지: 상품 삭제
+@app.route('/admin/delete_product/<product_id>')
+def admin_delete_product(product_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    db = get_db()
+    cursor = db.cursor()
+    # 관리자 인증
+    cursor.execute("SELECT id, role FROM user WHERE id = ?", (session['user_id'],))
+    admin_user = cursor.fetchone()
+    if not admin_user or admin_user['role'] != 'admin':
+        abort(403)
+    # 상품 존재 확인
+    cursor.execute("SELECT id FROM product WHERE id = ?", (product_id,))
+    product = cursor.fetchone()
+    if not product:
+        flash("상품을 찾을 수 없습니다.")
+        return redirect(url_for('admin'))
+    # 상품 삭제
+    cursor.execute("DELETE FROM product WHERE id = ?", (product_id,))
+    db.commit()
+    # 관리자 로그 기록
+    log_admin_action(admin_user['id'], 'product_deleted', 'product', product_id)
+    flash("상품이 삭제되었습니다.")
     return redirect(url_for('admin'))
 
 #관리자 페이지: 신고 처리하기

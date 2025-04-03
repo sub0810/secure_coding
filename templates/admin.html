@@ -28,6 +28,9 @@
           <button>숨기기</button>
         {% endif %}
       </a>
+      <a href="{{ url_for('admin_delete_product', product_id=p['id']) }}" onclick="return confirm('정말 삭제하시겠습니까?');">
+        <button style="margin-left: 5px;">삭제</button>
+      </a>
     </li>
   {% endfor %}
 </ul>
