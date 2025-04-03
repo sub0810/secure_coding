@@ -608,7 +608,7 @@ def report():
         db = get_db()
         cursor = db.cursor()
         # 신고 대상 존재 여부 확인
-        cursor.execute("SELECT id FROM user WHERE id = ?", (target_id,))
+        cursor.execute("SELECT id FROM user WHERE username = ?", (target_id,))
         target_user = cursor.fetchone()
         if not target_user:
             flash("존재하지 않는 사용자입니다.")
