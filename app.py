@@ -291,22 +291,28 @@ def update_report(report_id):
         log_admin_action(admin_user['id'], f'report_{new_status}', 'report', report_id)
     return redirect(url_for('admin'))
 
-# 프로필 페이지: bio 업데이트 가능
+# 프로필 페이지: bio 업데이트 가능, 올린 상품 목록 확인
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     db = get_db()
     cursor = db.cursor()
+    # 현재 사용자 정보
+    cursor.execute("SELECT id, username, bio FROM user WHERE id = ?", (session['user_id'],))
+    current_user = cursor.fetchone()
+    # 소개글 업데이트
     if request.method == 'POST':
-        bio = request.form.get('bio', '')
+        bio = request.form['bio']
         cursor.execute("UPDATE user SET bio = ? WHERE id = ?", (bio, session['user_id']))
         db.commit()
-        flash('프로필이 업데이트되었습니다.')
+        flash("프로필이 업데이트되었습니다.")
         return redirect(url_for('profile'))
-    cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
-    current_user = cursor.fetchone()
-    return render_template('profile.html', user=current_user)
+    # 내가 등록한 상품 목록
+    cursor.execute("SELECT id, title, price FROM product WHERE seller_id = ?", (session['user_id'],))
+    my_products = cursor.fetchall()
+    return render_template('profile.html', user=current_user, products=my_products)
+
 
 # 프로필 페이지: 비밀번호 업데이트 기능
 @app.route('/update_password', methods=['POST'])
@@ -337,6 +343,64 @@ def update_password():
     db.commit()
 
     flash("비밀번호가 성공적으로 변경되었습니다.")
+    return redirect(url_for('profile'))
+
+# 내가 올린 상품 수정정
+@app.route('/product/edit/<product_id>', methods=['GET', 'POST'])
+def edit_product(product_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    db = get_db()
+    cursor = db.cursor()
+
+    # 상품 가져오기
+    cursor.execute("SELECT id, title, description, price, seller_id FROM product WHERE id = ?", (product_id,))
+    product = cursor.fetchone()
+
+    # 상품이 없거나 남의 상품일 경우
+    if not product or product['seller_id'] != session['user_id']:
+        flash("수정 권한이 없습니다.")
+        return redirect(url_for('profile'))
+
+    if request.method == 'POST':
+        new_title = request.form['title']
+        new_desc = request.form['description']
+        new_price = request.form['price']
+
+        cursor.execute("""
+            UPDATE product 
+            SET title = ?, description = ?, price = ? 
+            WHERE id = ?
+        """, (new_title, new_desc, new_price, product_id))
+        db.commit()
+
+        flash("상품이 수정되었습니다.")
+        return redirect(url_for('profile'))
+
+    return render_template('edit_product.html', product=product)
+
+# 내가 올린 상품 삭제
+@app.route('/product/delete/<product_id>')
+def delete_product(product_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    db = get_db()
+    cursor = db.cursor()
+
+    # 상품 확인
+    cursor.execute("SELECT seller_id FROM product WHERE id = ?", (product_id,))
+    product = cursor.fetchone()
+
+    if not product or product['seller_id'] != session['user_id']:
+        flash("삭제 권한이 없습니다.")
+        return redirect(url_for('profile'))
+
+    cursor.execute("DELETE FROM product WHERE id = ?", (product_id,))
+    db.commit()
+
+    flash("상품이 삭제되었습니다.")
     return redirect(url_for('profile'))
 
 # 사용자 검색 기능
