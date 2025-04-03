@@ -434,34 +434,37 @@ def update_password():
 def edit_product(product_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-
     db = get_db()
     cursor = db.cursor()
-
     # 상품 가져오기
     cursor.execute("SELECT id, title, description, price, seller_id FROM product WHERE id = ?", (product_id,))
     product = cursor.fetchone()
-
-    # 상품이 없거나 남의 상품일 경우
+    # 상품이 없거나, 남의 상품일 경우
     if not product or product['seller_id'] != session['user_id']:
         flash("수정 권한이 없습니다.")
         return redirect(url_for('profile'))
-
     if request.method == 'POST':
-        new_title = request.form['title']
-        new_desc = request.form['description']
-        new_price = request.form['price']
-
+        new_title = request.form['title'].strip()
+        new_desc = request.form['description'].strip()
+        if not new_title or not new_desc:
+            flash("제목과 설명을 입력해주세요.")
+            return redirect(url_for('edit_product', product_id=product_id))
+        try:
+            new_price = int(request.form['price'].strip())
+            if new_price < 0 or new_price > 1000000:
+                flash("가격은 0원 이상 1,000,000원 이하만 가능합니다.")
+                return redirect(url_for('edit_product', product_id=product_id))
+        except ValueError:
+            flash("가격은 숫자만 입력해주세요.")
+            return redirect(url_for('edit_product', product_id=product_id))
         cursor.execute("""
             UPDATE product 
             SET title = ?, description = ?, price = ? 
             WHERE id = ?
         """, (new_title, new_desc, new_price, product_id))
         db.commit()
-
         flash("상품이 수정되었습니다.")
         return redirect(url_for('profile'))
-
     return render_template('edit_product.html', product=product)
 
 # 내가 올린 상품 삭제
@@ -525,18 +528,24 @@ def new_product():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     if request.method == 'POST':
-        title = request.form['title']
-        description = request.form['description']
-        bank_name = request.form['bank_name']
-        account_number = request.form['account_number']
-        account_holder = request.form['account_holder']
-
+        title = request.form['title'].strip()
+        description = request.form['description'].strip()
+        bank_name = request.form['bank_name'].strip()
+        account_number = request.form['account_number'].strip()
+        account_holder = request.form['account_holder'].strip()
+        # 필수 입력 확인
+        if not title or not description or not bank_name or not account_number or not account_holder:
+            flash('모든 필수 항목을 입력해주세요.')
+            return redirect(url_for('new_product'))
+        # 가격 검증
         try:
-            price = int(request.form['price'])  #문자열 정수로 변환
+            price = int(request.form['price'].strip())
+            if price < 0 or price > 1000000:
+                flash('가격은 0원 이상 1,000,000원 이하만 가능합니다.')
+                return redirect(url_for('new_product'))
         except ValueError:
             flash('가격은 숫자만 입력해주세요.')
             return redirect(url_for('new_product'))
-
         db = get_db()
         cursor = db.cursor()
         product_id = str(uuid.uuid4())
