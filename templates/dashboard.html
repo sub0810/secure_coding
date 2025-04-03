@@ -3,7 +3,13 @@
 {% block content %}
 <h2>대시보드</h2>
 
-<!-- 검색창 추가 -->
+<!-- 사용자 검색창 -->
+<form method="get" action="{{ url_for('search_user') }}" style="float: right; margin-top: -40px;">
+  <input type="text" name="username" placeholder="사용자 검색..." required>
+  <button type="submit">검색</button>
+</form>
+
+<!-- 상품 검색창 추가 -->
 <form method="get" action="{{ url_for('dashboard') }}">
   <input type="text" name="q" placeholder="상품명으로 검색" value="{{ request.args.get('q', '') }}">
   <select name="sort">

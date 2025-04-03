@@ -308,6 +308,39 @@ def profile():
     current_user = cursor.fetchone()
     return render_template('profile.html', user=current_user)
 
+# 사용자 검색 기능
+@app.route('/search_user')
+def search_user():
+    username = request.args.get('username')
+    if not username:
+        flash('Username is required.')
+        return redirect(url_for('dashboard'))
+
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT username, bio FROM user WHERE username = ?", (username,))
+    user = cursor.fetchone()
+
+    if user:
+        return redirect(url_for('view_user', username=username))
+    else:
+        flash('User not found.')
+        return redirect(url_for('dashboard'))
+
+# 사용자 프로필 조회
+@app.route('/user/<username>')
+def view_user(username):
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT username, bio FROM user WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    if not user:
+        flash('User not found.')
+        return redirect(url_for('dashboard'))
+
+    return render_template('view_user.html', user=user)
+
+
 # 상품 등록
 @app.route('/product/new', methods=['GET', 'POST'])
 def new_product():
