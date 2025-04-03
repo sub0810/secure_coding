@@ -218,7 +218,7 @@ def admin():
         log_dicts.append(log)
     return render_template('admin.html', users=users, products=products, reports=report_dicts, user=current_user, logs=log_dicts)
 
-#사용자 정지
+#관리자 페이지: 사용자 정지
 @app.route('/admin/toggle_user/<user_id>')
 def toggle_user(user_id):
     if 'user_id' not in session:
@@ -240,7 +240,7 @@ def toggle_user(user_id):
         log_admin_action(admin_user['id'], f'user_{new_status}', 'user', user_id)
     return redirect(url_for('admin'))
 
-#상품 숨기기
+#관리자 페이지: 상품 숨기기
 @app.route('/admin/toggle_product/<product_id>')
 def toggle_product_visibility(product_id):
     if 'user_id' not in session:
@@ -261,7 +261,7 @@ def toggle_product_visibility(product_id):
         log_admin_action(admin_user['id'], f'product_{new_visibility}', 'product', product_id)
     return redirect(url_for('admin'))
 
-#신고 처리하기
+#관리자 페이지: 신고 처리하기
 @app.route('/admin/update_report/<report_id>')
 def update_report(report_id):
     if 'user_id' not in session:
@@ -308,6 +308,37 @@ def profile():
     current_user = cursor.fetchone()
     return render_template('profile.html', user=current_user)
 
+# 프로필 페이지: 비밀번호 업데이트 기능
+@app.route('/update_password', methods=['POST'])
+def update_password():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    current_pw = request.form['current_password']
+    new_pw = request.form['new_password']
+
+    db = get_db()
+    cursor = db.cursor()
+
+    # 현재 사용자 비밀번호 확인
+    cursor.execute("SELECT password FROM user WHERE id = ?", (session['user_id'],))
+    user = cursor.fetchone()
+
+    if not user:
+        flash("사용자를 찾을 수 없습니다.")
+        return redirect(url_for('profile'))
+
+    if user['password'] != current_pw:
+        flash("현재 비밀번호가 일치하지 않습니다.")
+        return redirect(url_for('profile'))
+
+    # 새 비밀번호로 업데이트
+    cursor.execute("UPDATE user SET password = ? WHERE id = ?", (new_pw, session['user_id']))
+    db.commit()
+
+    flash("비밀번호가 성공적으로 변경되었습니다.")
+    return redirect(url_for('profile'))
+
 # 사용자 검색 기능
 @app.route('/search_user')
 def search_user():
@@ -327,7 +358,7 @@ def search_user():
         flash('User not found.')
         return redirect(url_for('dashboard'))
 
-# 사용자 프로필 조회
+# 대시보드:  사용자 프로필 조회
 @app.route('/user/<username>')
 def view_user(username):
     db = get_db()
@@ -339,7 +370,6 @@ def view_user(username):
         return redirect(url_for('dashboard'))
 
     return render_template('view_user.html', user=user)
-
 
 # 상품 등록
 @app.route('/product/new', methods=['GET', 'POST'])
