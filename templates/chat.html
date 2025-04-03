@@ -29,17 +29,16 @@
 
   // 메시지 전송
   function sendMessage() {
-    var input = document.getElementById("chat_input");
-    var message = input.value;
-    if (message) {
-      socket.emit('private_message', {
-        room: room,
-        sender_name: "{{ me.username }}",
-        message: message
-      });
-      input.value = "";
-    }
+  const input = document.getElementById("chat_input");
+  const message = input.value;
+  if (message) {
+    socket.emit("private_message", {
+      room: room,
+      message: message  //sender_name 안보내기기
+    });
+    input.value = "";
   }
+}
 </script>
 
 {% endblock %}

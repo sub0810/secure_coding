@@ -645,15 +645,30 @@ def handle_join_room(data):
 # 메시지 송수신 (휘발성)
 @socketio.on('private_message')
 def handle_private_message(data):
-    room = data['room']
-    sender_name = data['sender_name']
-    message = data['message']
+    if 'user_id' not in session:
+        return
 
-    print(f"[chat] {sender_name}: {message}")
+    sender_id = session['user_id']
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT username FROM user WHERE id = ?", (sender_id,))
+    result = cursor.fetchone()
+    sender_name = result['username'] if result else '알수없음'
+
+    # 안전하게 필드 추출
+    room = data.get('room', '').strip()
+    message = data.get('message', '').strip()
+    # 메시지 형식 검증
+    if not isinstance(room, str) or not isinstance(message, str):
+        return
+    if len(message) == 0 or len(message) > 300:
+        return
+
     emit('private_message', {
         'sender_name': sender_name,
         'message': message
-    }, to=room)
+    }, to=data.get('room', ''))
+
 
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성
