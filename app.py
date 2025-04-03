@@ -1,11 +1,18 @@
 import sqlite3
 import uuid
 import datetime
+import re
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g, abort
 from flask_socketio import SocketIO, send, join_room, emit
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=False,   #HTTPS 환경이면 True
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=datetime.timedelta(minutes=30)
+)
 DATABASE = 'market.db'
 socketio = SocketIO(app)
 
@@ -23,6 +30,10 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('error.html', message="서버 오류가 발생했습니다."), 500
+
 # 테이블 생성 (최초 실행 시에만)
 def init_db():
     with app.app_context():
@@ -36,7 +47,9 @@ def init_db():
                 password TEXT NOT NULL,
                 bio TEXT,
                 role TEXT DEFAULT 'user',
-                status TEXT DEFAULT 'active'
+                status TEXT DEFAULT 'active',
+                failed_attempts INTEGER DEFAULT 0,
+                last_failed_login TEXT
             )
         """)
         # 상품 테이블 생성
@@ -88,6 +101,19 @@ def log_admin_action(admin_id, action, target_type, target_id):
     """, (log_id, admin_id, action, target_type, target_id, timestamp))
     db.commit()
 
+# #테스트용 에러 페이지
+# @app.route('/crash')
+# def crash():
+#     raise Exception("테스트용 내부 오류 발생!") #Exception
+# @app.route('/dberror')
+# def db_error():
+#     db = get_db()
+#     cursor = db.cursor()
+#     cursor.execute("SELECT * FROM not_a_real_table")  # 존재하지 않는 테이블
+#     return "실행됨"
+# @app.route('/typeerror')
+# def type_error():
+#     return 5 + "문자열"  # 타입 불일치
 
 # 기본 라우트
 @app.route('/')
@@ -100,8 +126,16 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form['username'].strip()
+        password = request.form['password'].strip()
+        # 사용자명 유효성 검사 (영문, 숫자, 밑줄만 허용, 4~20자)
+        if not re.match(r'^[a-zA-Z0-9_]{4,20}$', username):
+            flash("아이디 형식이 올바르지 않습니다.")
+            return redirect(url_for('register'))
+        # 비밀번호 최소 길이 검사
+        if len(password) < 8:
+            flash("비밀번호는 8자 이상이어야 합니다.")
+            return redirect(url_for('register'))
         db = get_db()
         cursor = db.cursor()
         # 중복 사용자 체크
@@ -117,28 +151,52 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html')
 
-# 로그인
+#로그인
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form['username'].strip()
+        password = request.form['password'].strip()
+        # 사용자명 유효성 검사 (영문, 숫자, 밑줄만 허용, 4~20자)
+        if not re.match(r'^[a-zA-Z0-9_]{4,20}$', username):
+            flash("아이디 형식이 올바르지 않습니다.")
+            return redirect(url_for('login'))
         db = get_db()
         cursor = db.cursor()
-        cursor.execute("SELECT * FROM user WHERE username = ? AND password = ?", (username, password))
+        cursor.execute("SELECT * FROM user WHERE username = ?", (username,))
         user = cursor.fetchone()
+
         if user:
-            if user['status'] == 'suspended':
-                flash('정지된 계정입니다. 관리자에게 문의하세요.')
+            MAX_ATTEMPTS = 5
+            LOCK_TIME = 60  # seconds
+
+            if user['failed_attempts'] >= MAX_ATTEMPTS and user['last_failed_login']:
+                last_fail = datetime.datetime.strptime(user['last_failed_login'], '%Y-%m-%d %H:%M:%S')
+                delta = datetime.datetime.now() - last_fail
+                if delta.total_seconds() < LOCK_TIME:
+                    flash("로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.")
+                    return redirect(url_for('login'))
+
+            if user['password'] == password:
+                if user['status'] == 'suspended':
+                    flash('정지된 계정입니다. 관리자에게 문의하세요.')
+                    return redirect(url_for('login'))
+                session['user_id'] = user['id']
+                session.permanent = True
+                cursor.execute("UPDATE user SET failed_attempts = 0, last_failed_login = NULL WHERE id = ?", (user['id'],))
+                db.commit()
+                flash('로그인 성공!')
+                return redirect(url_for('dashboard'))
+            else:
+                now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute("UPDATE user SET failed_attempts = failed_attempts + 1, last_failed_login = ? WHERE id = ?", (now, user['id']))
+                db.commit()
+                flash('아이디 또는 비밀번호가 올바르지 않습니다.')
                 return redirect(url_for('login'))
-            session['user_id'] = user['id']
-            flash('로그인 성공!')
-            return redirect(url_for('dashboard'))
         else:
             flash('아이디 또는 비밀번호가 올바르지 않습니다.')
             return redirect(url_for('login'))
     return render_template('login.html')
-
 
 # 로그아웃
 @app.route('/logout')
@@ -371,7 +429,7 @@ def update_password():
     flash("비밀번호가 성공적으로 변경되었습니다.")
     return redirect(url_for('profile'))
 
-# 내가 올린 상품 수정정
+# 내가 올린 상품 수정
 @app.route('/product/edit/<product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):
     if 'user_id' not in session:
@@ -590,4 +648,4 @@ def handle_private_message(data):
 
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True) #배포 시 False로 변경, 우선은 True로 설정해두자.
